@@ -178,7 +178,7 @@ public abstract class RelationalSnapshotChangeEventSource<P extends Partition, O
                 .collect(Collectors.toCollection(LinkedHashSet::new));
     }
 
-    private void determineCapturedTables(RelationalSnapshotContext<P, O> ctx) throws Exception {
+    protected void determineCapturedTables(RelationalSnapshotContext<P, O> ctx) throws Exception {
         Set<TableId> allTableIds = getAllTableIds(ctx);
         Set<TableId> snapshottedTableIds = determineDataCollectionsToBeSnapshotted(allTableIds).collect(Collectors.toSet());
 
