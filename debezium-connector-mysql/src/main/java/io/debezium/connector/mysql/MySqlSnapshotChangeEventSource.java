@@ -71,15 +71,37 @@ public class MySqlSnapshotChangeEventSource extends RelationalSnapshotChangeEven
         this.lastEventProcessor = lastEventProcessor;
     }
 
+    /**
+     * It connects to database and load all filtered tables to capture using standard debezium methods.
+     * Then it founds tables which hasn't captured schema.
+     * @param partition partition
+     * @return true if found new table without schema captured
+     */
+    private boolean shouldRecaptureSchemaSnapshot(MySqlPartition partition){
+        try (MySqlSnapshotContext ctx = (MySqlSnapshotContext)prepare(partition)){
+            determineCapturedTables(ctx);
+            boolean result = !databaseSchema.tableIds().containsAll(ctx.capturedSchemaTables);
+            LOGGER.info("Should recapture all captured tables schemas return: " + result);
+            return result;
+        }
+        catch (Exception e) {
+            LOGGER.error("Failed to recapture all captured tables schemas", e);
+            throw new RuntimeException(e);
+        }
+    }
+
     @Override
     protected SnapshottingTask getSnapshottingTask(MySqlPartition partition, MySqlOffsetContext previousOffset) {
+
         boolean snapshotSchema = true;
         boolean snapshotData = true;
 
         // found a previous offset and the earlier snapshot has completed
         if (previousOffset != null && !previousOffset.isSnapshotRunning()) {
             LOGGER.info("A previous offset indicating a completed snapshot has been found. Neither schema nor data will be snapshotted.");
-            snapshotSchema = databaseSchema.isStorageInitializationExecuted();
+            snapshotSchema = databaseSchema.isStorageInitializationExecuted() ||
+                    // if only options is set and there are new tables
+                    (databaseSchema.storeOnlyCapturedTables() && shouldRecaptureSchemaSnapshot(partition));
             snapshotData = false;
         }
         else {
